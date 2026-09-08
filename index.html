@@ -3,98 +3,296 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>PIPINO</title>
+  <meta name="theme-color" content="#020b07">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>PIPINO — Trading Journal</title>
+
   <link rel="stylesheet" href="style.css">
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
+
 <body>
+
   <div class="app">
+
+    <!-- TOP BAR -->
     <header class="topbar">
+
       <div>
         <div class="brand">PIPINO</div>
         <div class="muted" id="greeting">TRADING JOURNAL</div>
       </div>
+
       <button class="icon-btn" id="closeBtn">×</button>
+
     </header>
 
+
     <main>
+
+      <!-- PORTFOLIO -->
       <section class="hero card">
-        <div class="eyebrow">PORTFOLIO</div>
-        <div class="balance">—</div>
-        <div class="pnl">Trading Journal</div>
+
+        <div class="hero-glow"></div>
+
+        <div class="eyebrow">
+          PORTFOLIO
+        </div>
+
+        <div class="balance" id="portfolio">
+          +0.00R
+        </div>
+
+        <div class="pnl" id="portfolioSub">
+          0 closed trades
+        </div>
+
       </section>
 
+
+      <!-- STATS -->
       <section class="stats">
-        <div class="stat card"><span>Trades</span><b id="tradeCount">0</b></div>
-        <div class="stat card"><span>Win Rate</span><b>—</b></div>
-        <div class="stat card"><span>Profit</span><b>—</b></div>
+
+        <div class="stat card">
+          <span>TRADES</span>
+          <b id="tradeCount">0</b>
+        </div>
+
+        <div class="stat card">
+          <span>WIN RATE</span>
+          <b id="winRate">—</b>
+        </div>
+
+        <div class="stat card">
+          <span>PROFIT</span>
+          <b id="profit">+0.00R</b>
+        </div>
+
       </section>
 
-      <button class="primary" id="openTrade">＋ ثبت معامله</button>
 
+      <!-- ADD TRADE -->
+      <button class="primary" id="openTrade">
+        ＋ ثبت معامله
+      </button>
+
+
+      <!-- RECENT TRADES -->
       <section class="card recent">
-        <div class="section-title">آخرین معاملات</div>
-        <div id="tradeList" class="empty">هنوز معامله‌ای ثبت نشده.</div>
+
+        <div class="section-title">
+          آخرین معاملات
+        </div>
+
+        <div id="tradeList" class="empty">
+          هنوز معامله‌ای ثبت نشده.
+        </div>
+
       </section>
+
     </main>
 
+
+    <!-- BOTTOM NAV -->
     <nav class="bottom-nav">
-      <button class="active">خانه</button>
-      <button id="navTrades">معاملات</button>
-      <button>آمار</button>
+
+      <button class="active" data-tab="home">
+        خانه
+      </button>
+
+      <button data-tab="trades">
+        معاملات
+      </button>
+
+      <button data-tab="stats">
+        آمار
+      </button>
+
     </nav>
+
   </div>
 
+
+  <!-- TRADE MODAL -->
   <div class="modal hidden" id="tradeModal">
+
     <div class="sheet">
+
       <div class="sheet-head">
+
         <div>
-          <div class="eyebrow">NEW TRADE</div>
-          <h2>ثبت معامله</h2>
+          <div class="eyebrow">
+            NEW TRADE
+          </div>
+
+          <h2>
+            ثبت معامله
+          </h2>
         </div>
-        <button class="icon-btn" id="cancelTrade">×</button>
+
+        <button class="icon-btn" id="cancelTrade">
+          ×
+        </button>
+
       </div>
 
+
+      <!-- STEP 1 -->
       <div class="step" id="step1">
-        <label>نماد</label>
-        <input id="symbol" placeholder="BTCUSDT" autocomplete="off">
-        <button class="primary next" data-next="2">ادامه</button>
+
+        <label>
+          نماد
+        </label>
+
+        <input
+          id="symbol"
+          placeholder="BTCUSDT"
+          autocomplete="off"
+          spellcheck="false"
+        >
+
+        <button
+          class="primary next"
+          data-next="2"
+        >
+          ادامه
+        </button>
+
       </div>
 
+
+      <!-- STEP 2 -->
       <div class="step hidden" id="step2">
-        <label>جهت معامله</label>
+
+        <label>
+          جهت معامله
+        </label>
+
         <div class="direction">
-          <button data-dir="BUY">🟢 BUY</button>
-          <button data-dir="SELL">🔴 SELL</button>
+
+          <button data-dir="BUY">
+            🟢 BUY
+          </button>
+
+          <button data-dir="SELL">
+            🔴 SELL
+          </button>
+
         </div>
+
       </div>
 
+
+      <!-- STEP 3 -->
       <div class="step hidden" id="step3">
-        <label>نقطه ورود</label>
-        <input id="entry" type="number" step="any" placeholder="65000">
-        <button class="primary next" data-next="4">ادامه</button>
+
+        <label>
+          نقطه ورود
+        </label>
+
+        <input
+          id="entry"
+          type="number"
+          step="any"
+          placeholder="65000"
+        >
+
+        <button
+          class="primary next"
+          data-next="4"
+        >
+          ادامه
+        </button>
+
       </div>
 
+
+      <!-- STEP 4 -->
       <div class="step hidden" id="step4">
-        <label>Stop Loss</label>
-        <input id="sl" type="number" step="any" placeholder="64500">
-        <button class="primary next" data-next="5">ادامه</button>
+
+        <label>
+          Stop Loss
+        </label>
+
+        <input
+          id="sl"
+          type="number"
+          step="any"
+          placeholder="64500"
+        >
+
+        <button
+          class="primary next"
+          data-next="5"
+        >
+          ادامه
+        </button>
+
       </div>
 
+
+      <!-- STEP 5 -->
       <div class="step hidden" id="step5">
-        <label>Take Profit</label>
-        <input id="tp" type="number" step="any" placeholder="66000">
-        <button class="primary" id="preview">نمایش معامله</button>
+
+        <label>
+          Take Profit
+        </label>
+
+        <input
+          id="tp"
+          type="number"
+          step="any"
+          placeholder="66000"
+        >
+
+        <button
+          class="primary"
+          id="preview"
+        >
+          نمایش معامله
+        </button>
+
       </div>
 
+
+      <!-- STEP 6 -->
       <div class="step hidden" id="step6">
-        <div class="preview" id="previewBox"></div>
-        <button class="primary" id="saveTrade">✓ ثبت معامله</button>
-        <button class="secondary" id="editTrade">ویرایش</button>
+
+        <div
+          class="preview"
+          id="previewBox"
+        ></div>
+
+        <button
+          class="primary"
+          id="saveTrade"
+        >
+          ✓ ثبت معامله
+        </button>
+
+        <button
+          class="secondary"
+          id="editTrade"
+        >
+          ویرایش
+        </button>
+
       </div>
+
     </div>
+
   </div>
+
+
+  <!-- TOAST -->
+  <div
+    class="toast hidden"
+    id="toast"
+  ></div>
+
 
   <script src="app.js"></script>
+
 </body>
 </html>
