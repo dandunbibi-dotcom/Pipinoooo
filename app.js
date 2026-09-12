@@ -1,27 +1,50 @@
 /* =========================================================
-   PIPINO — Trading Journal
-   Compatible with current index.html
+PIPINO — TRADING JOURNAL
+Version 2 — FIXED
 ========================================================= */
 
-const tg = window.Telegram?.WebApp;
+
+/* =========================
+TELEGRAM
+========================= */
+
+const tg = window.Telegram?.WebApp || null;
 
 if (tg) {
   tg.ready();
   tg.expand();
 }
 
-/* =========================================================
-   USER ID / STORAGE
-========================================================= */
 
-const telegramUserId =
+/* =========================
+HELPERS
+========================= */
+
+const $ = id => document.getElementById(id);
+
+
+/* =========================
+STORAGE
+========================= */
+
+const cloud = tg?.CloudStorage || null;
+
+const CLOUD_KEY = "pipino_trades_v2";
+
+const userId =
   tg?.initDataUnsafe?.user?.id
     ? String(tg.initDataUnsafe.user.id)
     : "guest";
 
-const LOCAL_KEY = `pipino_trades_v2_${telegramUserId}`;
+const LOCAL_KEY = `pipino_trades_v2_${userId}`;
+
+
+/* =========================
+STATE
+========================= */
 
 let trades = [];
+
 let draft = {
   symbol: "",
   direction: "",
@@ -30,265 +53,202 @@ let draft = {
   tp: null
 };
 
-/* =========================================================
-   DOM
-========================================================= */
 
-const $ = (id) => document.getElementById(id);
+/* =========================
+TOAST
+========================= */
 
-const tradeModal = $("tradeModal");
-const tradeList = $("tradeList");
+function toast(text) {
+  const element = $("toast");
 
-const portfolioEl = $("portfolio");
-const portfolioSubEl = $("portfolioSub");
-const tradeCountEl = $("tradeCount");
-const winRateEl = $("winRate");
-const profitEl = $("profit");
+  if (!element) return;
 
-const symbolInput = $("symbol");
-const entryInput = $("entry");
-const slInput = $("sl");
-const tpInput = $("tp");
+  element.textContent = text;
+  element.classList.remove("hidden");
 
-const previewBox = $("previewBox");
-const toast = $("toast");
+  clearTimeout(window.__toastTimer);
 
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function escapeHTML(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  window.__toastTimer = setTimeout(() => {
+    element.classList.add("hidden");
+  }, 1800);
 }
 
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.remove("hidden");
 
-  clearTimeout(showToast.timer);
-
-  showToast.timer = setTimeout(() => {
-    toast.classList.add("hidden");
-  }, 2200);
-}
-
-function vibrate(type = "light") {
-  try {
-    if (tg?.HapticFeedback) {
-      if (type === "success") {
-        tg.HapticFeedback.notificationOccurred("success");
-      } else if (type === "error") {
-        tg.HapticFeedback.notificationOccurred("error");
-      } else {
-        tg.HapticFeedback.impactOccurred("light");
-      }
-    }
-  } catch (e) {}
-}
-
-function formatR(value) {
-  const n = Number(value) || 0;
-
-  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}R`;
-}
-
-function formatNumber(value) {
-  const n = Number(value);
-
-  if (!Number.isFinite(n)) return "-";
-
-  return n.toLocaleString("en-US", {
-    maximumFractionDigits: 8
-  });
-}
-
-function getRR(direction, entry, sl, tp) {
-  const risk = Math.abs(entry - sl);
-
-  if (risk <= 0) return null;
-
-  const reward = Math.abs(tp - entry);
-
-  return reward / risk;
-}
-
-function isValidTrade(direction, entry, sl, tp) {
-  if (
-    !Number.isFinite(entry) ||
-    !Number.isFinite(sl) ||
-    !Number.isFinite(tp)
-  ) {
-    return false;
-  }
-
-  if (entry === sl || entry === tp) {
-    return false;
-  }
-
-  if (direction === "BUY") {
-    return sl < entry && tp > entry;
-  }
-
-  if (direction === "SELL") {
-    sl > entry && tp < entry;
-  }
-
-  return false;
-}
-
-/* =========================================================
-   STORAGE
-========================================================= */
-
-function saveLocal() {
-  try {
-    localStorage.setItem(
-      LOCAL_KEY,
-      JSON.stringify(trades)
-    );
-  } catch (e) {
-    console.warn("LocalStorage error:", e);
-  }
-}
-
-function loadLocal() {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY);
-
-    if (!raw) {
-      trades = [];
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-
-    trades = Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    trades = [];
-  }
-}
-
-/* =========================================================
-   TELEGRAM CLOUD STORAGE
-========================================================= */
+/* =========================
+CLOUD GET
+========================= */
 
 function cloudGet(key) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
 
-    if (!tg?.CloudStorage) {
+    if (!cloud) {
       resolve(null);
       return;
     }
 
-    tg.CloudStorage.getItem(key, (error, value) => {
-      if (error) {
+    cloud.getItem(key, (err, value) => {
+
+      if (err) {
         resolve(null);
         return;
       }
 
       resolve(value || null);
+
     });
 
   });
 }
 
-function cloudSet(key, value) {
-  return new Promise((resolve) => {
 
-    if (!tg?.CloudStorage) {
+/* =========================
+CLOUD SET
+========================= */
+
+function cloudSet(key, value) {
+  return new Promise(resolve => {
+
+    if (!cloud) {
       resolve(false);
       return;
     }
 
-    tg.CloudStorage.setItem(key, value, (error, success) => {
-      resolve(!error && success !== false);
+    cloud.setItem(key, value, err => {
+      resolve(!err);
     });
 
   });
 }
 
+
+/* =========================
+LOAD TRADES
+========================= */
+
 async function loadTrades() {
 
+  let loaded = null;
+
   /*
-    First try Telegram CloudStorage.
-    If unavailable, use user-specific localStorage.
+  Telegram CloudStorage
   */
 
-  const cloudData = await cloudGet("pipino_trades");
+  const cloudValue = await cloudGet(CLOUD_KEY);
 
-  if (cloudData) {
+  if (cloudValue) {
+
     try {
-      const parsed = JSON.parse(cloudData);
+      loaded = JSON.parse(cloudValue);
+    } catch (error) {
+      loaded = null;
+    }
 
-      if (Array.isArray(parsed)) {
-        trades = parsed;
-        saveLocal();
-        return;
-      }
-    } catch (e) {}
   }
 
-  loadLocal();
+
+  /*
+  LocalStorage fallback
+  */
+
+  if (!Array.isArray(loaded)) {
+
+    try {
+
+      loaded = JSON.parse(
+        localStorage.getItem(LOCAL_KEY) || "[]"
+      );
+
+    } catch (error) {
+
+      loaded = [];
+
+    }
+
+  }
+
+
+  trades = Array.isArray(loaded)
+    ? loaded
+    : [];
+
+
+  render();
+
 }
 
-async function persistTrades() {
+
+/* =========================
+SAVE DATA
+========================= */
+
+async function persist() {
 
   const json = JSON.stringify(trades);
 
-  saveLocal();
 
-  await cloudSet("pipino_trades", json);
+  /*
+  LocalStorage
+  */
+
+  try {
+
+    localStorage.setItem(
+      LOCAL_KEY,
+      json
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "LocalStorage unavailable",
+      error
+    );
+
+  }
+
+
+  /*
+  Telegram CloudStorage
+  */
+
+  await cloudSet(
+    CLOUD_KEY,
+    json
+  );
+
+
+  render();
+
 }
 
-/* =========================================================
-   GREETING
-========================================================= */
 
-function updateGreeting() {
+/* =========================
+STEP CONTROL
+========================= */
 
-  const greeting = $("greeting");
+function showStep(n) {
 
-  if (!greeting) return;
+  document
+    .querySelectorAll(".step")
+    .forEach(element => {
+      element.classList.add("hidden");
+    });
 
-  const firstName =
-    tg?.initDataUnsafe?.user?.first_name;
 
-  greeting.textContent =
-    firstName
-      ? `TRADING JOURNAL • ${firstName}`
-      : "TRADING JOURNAL";
+  const step = $("step" + n);
+
+  if (step) {
+    step.classList.remove("hidden");
+  }
+
 }
 
-/* =========================================================
-   MODAL
-========================================================= */
 
-function openModal() {
+/* =========================
+RESET DRAFT
+========================= */
 
-  tradeModal.classList.remove("hidden");
-
-  resetForm();
-
-  showStep(1);
-
-  setTimeout(() => {
-    symbolInput?.focus();
-  }, 150);
-}
-
-function closeModal() {
-
-  tradeModal.classList.add("hidden");
-
-  resetForm();
-}
-
-function resetForm() {
+function resetDraft() {
 
   draft = {
     symbol: "",
@@ -298,757 +258,1279 @@ function resetForm() {
     tp: null
   };
 
-  if (symbolInput) symbolInput.value = "";
-  if (entryInput) entryInput.value = "";
-  if (slInput) slInput.value = "";
-  if (tpInput) tpInput.value = "";
 
-  if (previewBox) {
-    previewBox.innerHTML = "";
-  }
+  [
+    "symbol",
+    "entry",
+    "sl",
+    "tp"
+  ].forEach(id => {
 
-  document
-    .querySelectorAll(".step")
-    .forEach((step) => {
-      step.classList.add("hidden");
-    });
-}
+    const element = $(id);
 
-function showStep(number) {
-
-  document
-    .querySelectorAll(".step")
-    .forEach((step) => {
-      step.classList.add("hidden");
-    });
-
-  const target = $(`step${number}`);
-
-  if (target) {
-    target.classList.remove("hidden");
-  }
-}
-
-/* =========================================================
-   STEP NAVIGATION
-========================================================= */
-
-document
-  .querySelectorAll(".next")
-  .forEach((button) => {
-
-    button.addEventListener("click", () => {
-
-      const next = Number(button.dataset.next);
-
-      if (next === 2) {
-
-        const symbol =
-          symbolInput.value.trim().toUpperCase();
-
-        if (!symbol) {
-          showToast("نماد را وارد کن");
-          vibrate("error");
-          return;
-        }
-
-        draft.symbol = symbol;
-      }
-
-      if (next === 4) {
-
-        const entry = Number(entryInput.value);
-
-        if (!Number.isFinite(entry) || entry <= 0) {
-          showToast("Entry معتبر نیست");
-          vibrate("error");
-          return;
-        }
-
-        draft.entry = entry;
-      }
-
-      if (next === 5) {
-
-        const sl = Number(slInput.value);
-
-        if (!Number.isFinite(sl) || sl <= 0) {
-          showToast("Stop Loss معتبر نیست");
-          vibrate("error");
-          return;
-        }
-
-        draft.sl = sl;
-      }
-
-      showStep(next);
-    });
-
-  });
-
-/* =========================================================
-   DIRECTION
-========================================================= */
-
-document
-  .querySelectorAll("[data-dir]")
-  .forEach((button) => {
-
-    button.addEventListener("click", () => {
-
-      const direction = button.dataset.dir;
-
-      draft.direction = direction;
-
-      vibrate("light");
-
-      showStep(3);
-    });
-
-  });
-
-/* =========================================================
-   PREVIEW
-========================================================= */
-
-$("preview")?.addEventListener("click", () => {
-
-  const tp = Number(tpInput.value);
-
-  if (!Number.isFinite(tp) || tp <= 0) {
-    showToast("Take Profit معتبر نیست");
-    vibrate("error");
-    return;
-  }
-
-  draft.tp = tp;
-
-  const valid = isValidTrade(
-    draft.direction,
-    draft.entry,
-    draft.sl,
-    draft.tp
-  );
-
-  if (!valid) {
-
-    if (draft.direction === "BUY") {
-      showToast("برای BUY: SL پایین Entry و TP بالای Entry باشد");
-    } else {
-      showToast("برای SELL: SL بالای Entry و TP پایین Entry باشد");
+    if (element) {
+      element.value = "";
     }
 
-    vibrate("error");
+  });
 
-    return;
-  }
 
-  const rr = getRR(
-    draft.direction,
-    draft.entry,
-    draft.sl,
-    draft.tp
-  );
+  /*
+  Reset direction buttons
+  */
 
-  previewBox.innerHTML = `
-    <div class="preview-row">
-      <span>Symbol</span>
-      <strong>${escapeHTML(draft.symbol)}</strong>
-    </div>
+  document
+    .querySelectorAll("[data-dir]")
+    .forEach(button => {
+      button.classList.remove("selected");
+    });
 
-    <div class="preview-row">
-      <span>Direction</span>
-      <strong class="${draft.direction === "BUY" ? "buy" : "sell"}">
-        ${draft.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"}
-      </strong>
-    </div>
-
-    <div class="preview-row">
-      <span>Entry</span>
-      <strong>${formatNumber(draft.entry)}</strong>
-    </div>
-
-    <div class="preview-row">
-      <span>Stop Loss</span>
-      <strong>${formatNumber(draft.sl)}</strong>
-    </div>
-
-    <div class="preview-row">
-      <span>Take Profit</span>
-      <strong>${formatNumber(draft.tp)}</strong>
-    </div>
-
-    <div class="preview-row rr-row">
-      <span>R:R</span>
-      <strong>1 : ${rr.toFixed(2)}</strong>
-    </div>
-  `;
-
-  showStep(6);
-
-});
-
-/* =========================================================
-   EDIT TRADE
-========================================================= */
-
-$("editTrade")?.addEventListener("click", () => {
 
   showStep(1);
 
-  symbolInput.value = draft.symbol;
+}
 
-  /*
-    Put the user back at symbol first.
-    They can move through the steps again.
-  */
 
-});
+/* =========================
+OPEN MODAL
+========================= */
 
-/* =========================================================
-   SAVE TRADE
-========================================================= */
+function openModal() {
 
-$("saveTrade")?.addEventListener("click", async () => {
+  resetDraft();
+
+  const modal = $("tradeModal");
+
+  if (modal) {
+    modal.classList.remove("hidden");
+  }
+
+}
+
+
+/* =========================
+CLOSE MODAL
+========================= */
+
+function closeModal() {
+
+  const modal = $("tradeModal");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+
+}
+
+
+/* =========================
+CALCULATE R:R
+========================= */
+
+function calcR(trade) {
+
+  const entry = Number(trade.entry);
+  const sl = Number(trade.sl);
+  const tp = Number(trade.tp);
+
+
+  const risk =
+    trade.direction === "BUY"
+      ? entry - sl
+      : sl - entry;
+
+
+  const reward =
+    trade.direction === "BUY"
+      ? tp - entry
+      : entry - tp;
+
 
   if (
-    !draft.symbol ||
-    !draft.direction ||
-    !draft.entry ||
-    !draft.sl ||
-    !draft.tp
+    !Number.isFinite(risk) ||
+    !Number.isFinite(reward) ||
+    risk <= 0 ||
+    reward <= 0
   ) {
-    showToast("اطلاعات معامله کامل نیست");
-    vibrate("error");
+    return null;
+  }
+
+
+  return reward / risk;
+
+}
+
+
+/* =========================
+VALIDATE TRADE
+========================= */
+
+function validateTrade() {
+
+  const symbol =
+    String(draft.symbol || "")
+      .trim()
+      .toUpperCase();
+
+
+  const entry = Number(draft.entry);
+  const sl = Number(draft.sl);
+  const tp = Number(draft.tp);
+
+
+  /*
+  Symbol
+  */
+
+  if (
+    !/^[A-Z0-9._-]{2,20}$/.test(symbol)
+  ) {
+
+    return "نماد نامعتبره.";
+
+  }
+
+
+  /*
+  Direction
+  */
+
+  if (
+    draft.direction !== "BUY" &&
+    draft.direction !== "SELL"
+  ) {
+
+    return "جهت معامله رو انتخاب کن.";
+
+  }
+
+
+  /*
+  Prices
+  */
+
+  if (
+    ![
+      entry,
+      sl,
+      tp
+    ].every(Number.isFinite) ||
+    entry <= 0 ||
+    sl <= 0 ||
+    tp <= 0
+  ) {
+
+    return "قیمت‌ها باید معتبر و بزرگ‌تر از صفر باشن.";
+
+  }
+
+
+  /*
+  BUY
+  */
+
+  if (
+    draft.direction === "BUY" &&
+    !(
+      sl < entry &&
+      tp > entry
+    )
+  ) {
+
+    return "برای BUY باید SL پایین‌تر از Entry و TP بالاتر از Entry باشه.";
+
+  }
+
+
+  /*
+  SELL
+  */
+
+  if (
+    draft.direction === "SELL" &&
+    !(
+      sl > entry &&
+      tp < entry
+    )
+  ) {
+
+    return "برای SELL باید SL بالاتر از Entry و TP پایین‌تر از Entry باشه.";
+
+  }
+
+
+  /*
+  Save normalized values
+  */
+
+  draft.symbol = symbol;
+  draft.entry = entry;
+  draft.sl = sl;
+  draft.tp = tp;
+
+
+  return null;
+
+}
+
+
+/* =========================
+PREVIEW
+========================= */
+
+function showPreview() {
+
+  const error = validateTrade();
+
+  if (error) {
+    toast(error);
     return;
   }
 
-  const rr = getRR(
-    draft.direction,
-    draft.entry,
-    draft.sl,
-    draft.tp
-  );
+
+  const rr = calcR(draft);
+
+  if (!rr) {
+    toast("R:R قابل محاسبه نیست.");
+    return;
+  }
+
+
+  const direction =
+    draft.direction === "BUY"
+      ? "🟢 BUY"
+      : "🔴 SELL";
+
+
+  const previewBox = $("previewBox");
+
+  if (!previewBox) return;
+
+
+  previewBox.innerHTML = `
+
+    <div>
+      <b>${draft.symbol}</b>
+      &nbsp;
+      ${direction}
+    </div>
+
+    <div>
+      Entry:
+      <span class="ltr">
+        ${draft.entry}
+      </span>
+    </div>
+
+    <div>
+      Stop Loss:
+      <span class="ltr">
+        ${draft.sl}
+      </span>
+    </div>
+
+    <div>
+      Take Profit:
+      <span class="ltr">
+        ${draft.tp}
+      </span>
+    </div>
+
+    <div>
+      R:R:
+      <b class="ltr">
+        1 : ${rr.toFixed(2)}
+      </b>
+    </div>
+
+    <div class="status">
+      نتیجه فعلاً: OPEN
+    </div>
+
+  `;
+
+
+  showStep(6);
+
+}
+
+
+/* =========================
+SAVE TRADE
+========================= */
+
+async function saveTrade() {
+
+  const error = validateTrade();
+
+  if (error) {
+    toast(error);
+    return;
+  }
+
+
+  const rr = calcR(draft);
+
+  if (!rr) {
+    toast("R:R نامعتبره.");
+    return;
+  }
+
 
   const trade = {
 
-    id:
-      Date.now().toString() +
-      "_" +
-      Math.random().toString(36).slice(2, 8),
-
-    number: trades.length + 1,
+    id: Date.now(),
 
     symbol: draft.symbol,
 
     direction: draft.direction,
 
-    entry: Number(draft.entry),
+    entry: draft.entry,
 
-    sl: Number(draft.sl),
+    sl: draft.sl,
 
-    tp: Number(draft.tp),
+    tp: draft.tp,
 
-    rr: Number(rr.toFixed(4)),
+    rr: Number(
+      rr.toFixed(4)
+    ),
 
-    status: "OPEN",
+    result: "OPEN",
 
-    resultR: 0,
-
-    createdAt: new Date().toISOString()
+    createdAt:
+      new Date().toISOString()
 
   };
+
 
   trades.unshift(trade);
 
-  await persistTrades();
+
+  await persist();
+
 
   closeModal();
 
-  renderAll();
 
-  showToast("✓ معامله با موفقیت ثبت شد");
-
-  vibrate("success");
-
-});
-
-/* =========================================================
-   TRADE RESULT
-========================================================= */
-
-async function setTradeStatus(id, status) {
-
-  const trade = trades.find(
-    (item) => item.id === id
-  );
-
-  if (!trade) return;
-
-  trade.status = status;
-
-  if (status === "WIN") {
-    trade.resultR = Number(trade.rr) || 0;
-  }
-
-  else if (status === "LOSS") {
-    trade.resultR = -1;
-  }
-
-  else if (status === "BE") {
-    trade.resultR = 0;
-  }
-
-  else {
-    trade.resultR = 0;
-  }
-
-  await persistTrades();
-
-  renderAll();
-
-  vibrate(
-    status === "WIN"
-      ? "success"
-      : "light"
-  );
+  toast("✓ معامله ثبت شد");
 
 }
 
-/* =========================================================
-   DELETE TRADE
-========================================================= */
 
-async function deleteTrade(id) {
+/* =========================
+SET TRADE RESULT
+========================= */
 
-  const index = trades.findIndex(
-    (trade) => trade.id === id
-  );
+async function setResult(id, result) {
 
-  if (index === -1) return;
+  const trade =
+    trades.find(
+      t => Number(t.id) === Number(id)
+    );
 
-  trades.splice(index, 1);
 
-  /*
-    Re-number trades after deletion.
-  */
-
-  trades.forEach((trade, i) => {
-    trade.number = trades.length - i;
-  });
-
-  await persistTrades();
-
-  renderAll();
-
-  showToast("معامله حذف شد");
-}
-
-/* =========================================================
-   RENDER TRADES
-========================================================= */
-
-function renderTrades() {
-
-  if (!tradeList) return;
-
-  if (!trades.length) {
-
-    tradeList.className = "empty";
-
-    tradeList.innerHTML =
-      "هنوز معامله‌ای ثبت نشده.";
-
+  if (!trade) {
     return;
   }
 
-  tradeList.className = "trade-list";
 
-  tradeList.innerHTML = trades
-    .map((trade) => {
+  /*
+  Don't allow changing an already
+  closed trade
+  */
 
-      const directionClass =
-        trade.direction === "BUY"
-          ? "buy"
-          : "sell";
-
-      const statusClass =
-        trade.status.toLowerCase();
-
-      let resultText = "OPEN";
-
-      if (trade.status === "WIN") {
-        resultText = `WIN ${formatR(trade.resultR)}`;
-      }
-
-      else if (trade.status === "LOSS") {
-        resultText = "LOSS -1.00R";
-      }
-
-      else if (trade.status === "BE") {
-        resultText = "BE 0.00R";
-      }
-
-      return `
-        <article class="trade-card">
-
-          <div class="trade-top">
-
-            <div>
-              <strong class="trade-symbol">
-                #${trade.number} ${escapeHTML(trade.symbol)}
-              </strong>
-
-              <span class="trade-direction ${directionClass}">
-                ${trade.direction}
-              </span>
-            </div>
-
-            <span class="trade-status ${statusClass}">
-              ${resultText}
-            </span>
-
-          </div>
+  if (trade.result !== "OPEN") {
+    return;
+  }
 
 
-          <div class="trade-levels">
+  trade.result = result;
 
-            <div>
-              <span>Entry</span>
-              <b>${formatNumber(trade.entry)}</b>
-            </div>
-
-            <div>
-              <span>SL</span>
-              <b>${formatNumber(trade.sl)}</b>
-            </div>
-
-            <div>
-              <span>TP</span>
-              <b>${formatNumber(trade.tp)}</b>
-            </div>
-
-            <div>
-              <span>R:R</span>
-              <b>1:${Number(trade.rr).toFixed(2)}</b>
-            </div>
-
-          </div>
+  trade.closedAt =
+    new Date().toISOString();
 
 
-          <div class="trade-actions">
+  await persist();
 
-            ${
-              trade.status === "OPEN"
-                ? `
-                  <button
-                    class="result-btn win-btn"
-                    data-action="win"
-                    data-id="${trade.id}"
-                  >
-                    ✓ WIN
-                  </button>
 
-                  <button
-                    class="result-btn loss-btn"
-                    data-action="loss"
-                    data-id="${trade.id}"
-                  >
-                    × LOSS
-                  </button>
+  if (result === "WIN") {
 
-                  <button
-                    class="result-btn be-btn"
-                    data-action="be"
-                    data-id="${trade.id}"
-                  >
-                    BE
-                  </button>
-                `
-                : `
-                  <button
-                    class="result-btn open-btn"
-                    data-action="open"
-                    data-id="${trade.id}"
-                  >
-                    ↻ OPEN
-                  </button>
-                `
-            }
+    toast("✓ معامله Win شد");
 
-            <button
-              class="delete-btn"
-              data-action="delete"
-              data-id="${trade.id}"
-            >
-              حذف
-            </button>
+  }
 
-          </div>
+  else if (result === "LOSS") {
 
-        </article>
-      `;
+    toast("✓ معامله Loss شد");
 
-    })
-    .join("");
+  }
+
+  else {
+
+    toast("✓ Break Even شد");
+
+  }
 
 }
 
-/* =========================================================
-   TRADE ACTION EVENTS
-========================================================= */
 
-tradeList?.addEventListener("click", async (event) => {
+/* =========================
+FORMAT R
+========================= */
 
-  const button =
-    event.target.closest("[data-action]");
+function formatR(n) {
 
-  if (!button) return;
+  const x = Number(n || 0);
 
-  const action = button.dataset.action;
-  const id = button.dataset.id;
+  return `${x >= 0 ? "+" : ""}${x.toFixed(2)}R`;
 
-  if (action === "win") {
-    await setTradeStatus(id, "WIN");
-  }
+}
 
-  else if (action === "loss") {
-    await setTradeStatus(id, "LOSS");
-  }
 
-  else if (action === "be") {
-    await setTradeStatus(id, "BE");
-  }
+/* =========================
+STATS
+========================= */
 
-  else if (action === "open") {
-    await setTradeStatus(id, "OPEN");
-  }
+function stats() {
 
-  else if (action === "delete") {
-
-    const confirmed =
-      window.confirm("این معامله حذف شود؟");
-
-    if (confirmed) {
-      await deleteTrade(id);
-    }
-
-  }
-
-});
-
-/* =========================================================
-   STATS
-========================================================= */
-
-function calculateStats() {
-
-  const closedTrades =
+  const closed =
     trades.filter(
-      (trade) =>
-        ["WIN", "LOSS", "BE"].includes(trade.status)
+      t =>
+        t.result &&
+        t.result !== "OPEN"
     );
 
+
   const wins =
-    closedTrades.filter(
-      (trade) => trade.status === "WIN"
+    closed.filter(
+      t => t.result === "WIN"
     ).length;
+
 
   const losses =
-    closedTrades.filter(
-      (trade) => trade.status === "LOSS"
+    closed.filter(
+      t => t.result === "LOSS"
     ).length;
+
 
   const be =
-    closedTrades.filter(
-      (trade) => trade.status === "BE"
+    closed.filter(
+      t => t.result === "BE"
     ).length;
 
-  const profit =
-    closedTrades.reduce(
-      (sum, trade) =>
-        sum + (Number(trade.resultR) || 0),
+
+  /*
+  WIN = +R:R
+  LOSS = -1R
+  BE = 0R
+  */
+
+  const netR =
+    closed.reduce(
+      (sum, trade) => {
+
+        if (
+          trade.result === "WIN"
+        ) {
+
+          return (
+            sum +
+            Number(trade.rr || 0)
+          );
+
+        }
+
+
+        if (
+          trade.result === "LOSS"
+        ) {
+
+          return sum - 1;
+
+        }
+
+
+        return sum;
+
+      },
       0
     );
 
-  const winRate =
-    closedTrades.length
-      ? (wins / closedTrades.length) * 100
-      : null;
 
   return {
-    total: trades.length,
-    closed: closedTrades.length,
+    closed,
     wins,
     losses,
     be,
-    profit,
-    winRate
+    netR
   };
 
 }
 
-/* =========================================================
-   RENDER STATS
-========================================================= */
 
-function renderStats() {
+/* =========================
+RENDER
+========================= */
 
-  const stats = calculateStats();
+function render() {
 
-  tradeCountEl.textContent =
-    stats.total;
+  const s = stats();
 
-  profitEl.textContent =
-    formatR(stats.profit);
-
-  portfolioEl.textContent =
-    formatR(stats.profit);
-
-  portfolioSubEl.textContent =
-    `${stats.closed} closed trades`;
-
-  if (stats.closed === 0) {
-    winRateEl.textContent = "—";
-  } else {
-    winRateEl.textContent =
-      `${stats.winRate.toFixed(1)}%`;
-  }
 
   /*
-    Add small visual classes if supported by CSS.
+  Trade count
   */
 
-  portfolioEl.classList.remove(
-    "positive",
-    "negative"
-  );
+  const tradeCount = $("tradeCount");
 
-  profitEl.classList.remove(
-    "positive",
-    "negative"
-  );
+  if (tradeCount) {
+    tradeCount.textContent =
+      trades.length;
+  }
 
-  if (stats.profit > 0) {
 
-    portfolioEl.classList.add("positive");
-    profitEl.classList.add("positive");
+  /*
+  Portfolio
+  */
+
+  const portfolio = $("portfolio");
+
+  if (portfolio) {
+    portfolio.textContent =
+      formatR(s.netR);
+  }
+
+
+  /*
+  Portfolio subtitle
+  */
+
+  const portfolioSub =
+    $("portfolioSub");
+
+  if (portfolioSub) {
+
+    portfolioSub.textContent =
+      `${s.closed.length} closed • ${
+        trades.length - s.closed.length
+      } open`;
 
   }
 
-  else if (stats.profit < 0) {
 
-    portfolioEl.classList.add("negative");
-    profitEl.classList.add("negative");
+  /*
+  Profit
+  */
+
+  const profit = $("profit");
+
+  if (profit) {
+
+    profit.textContent =
+      formatR(s.netR);
 
   }
 
+
+  /*
+  Win rate
+  */
+
+  const decided =
+    s.wins + s.losses;
+
+
+  const winRate =
+    $("winRate");
+
+
+  if (winRate) {
+
+    winRate.textContent =
+      decided
+        ? `${Math.round(
+            (s.wins / decided) * 100
+          )}%`
+        : "—";
+
+  }
+
+
+  /*
+  Trade list
+  */
+
+  const tradeList =
+    $("tradeList");
+
+
+  if (!tradeList) {
+    return;
+  }
+
+
+  /*
+  No trades
+  */
+
+  if (!trades.length) {
+
+    tradeList.innerHTML = `
+      <div class="empty">
+        هنوز معامله‌ای ثبت نشده.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  /*
+  Render latest trades
+  */
+
+  tradeList.innerHTML =
+    trades
+      .slice(0, 12)
+      .map(trade => {
+
+        const resultText =
+          trade.result === "WIN"
+            ? "WIN"
+            : trade.result === "LOSS"
+              ? "LOSS"
+              : trade.result === "BE"
+                ? "BREAK EVEN"
+                : "OPEN";
+
+
+        const resultClass =
+          trade.result === "WIN"
+            ? "win"
+            : trade.result === "LOSS"
+              ? "loss"
+              : "";
+
+
+        const direction =
+          trade.direction === "BUY"
+            ? "🟢 BUY"
+            : "🔴 SELL";
+
+
+        const directionClass =
+          trade.direction === "BUY"
+            ? "buy"
+            : "sell";
+
+
+        const rr =
+          Number(trade.rr || 0);
+
+
+        return `
+
+          <div class="trade">
+
+            <div class="trade-head">
+
+              <div class="trade-symbol">
+                ${escapeHTML(trade.symbol)}
+              </div>
+
+              <div
+                class="badge ${directionClass}"
+              >
+                ${direction}
+              </div>
+
+            </div>
+
+
+            <div class="trade-meta">
+
+              <div>
+                Entry
+                <b class="ltr">
+                  ${trade.entry}
+                </b>
+              </div>
+
+              <div>
+                SL
+                <b class="ltr">
+                  ${trade.sl}
+                </b>
+              </div>
+
+              <div>
+                TP
+                <b class="ltr">
+                  ${trade.tp}
+                </b>
+              </div>
+
+            </div>
+
+
+            <div
+              class="status ${resultClass}"
+            >
+
+              R:R 1:${rr.toFixed(2)}
+
+              •
+
+              ${resultText}
+
+            </div>
+
+
+            ${
+              trade.result === "OPEN"
+
+                ? `
+
+                  <div class="result-row">
+
+                    <button
+                      data-result="WIN"
+                      data-id="${trade.id}"
+                    >
+                      🟢 Win
+                    </button>
+
+                    <button
+                      data-result="LOSS"
+                      data-id="${trade.id}"
+                    >
+                      🔴 Loss
+                    </button>
+
+                    <button
+                      data-result="BE"
+                      data-id="${trade.id}"
+                    >
+                      ⚪ BE
+                    </button>
+
+                  </div>
+
+                `
+
+                : ""
+            }
+
+          </div>
+
+        `;
+
+      })
+      .join("");
+
 }
 
-/* =========================================================
-   RENDER ALL
-========================================================= */
 
-function renderAll() {
+/* =========================
+ESCAPE HTML
+========================= */
 
-  renderStats();
+function escapeHTML(value) {
 
-  renderTrades();
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 
 }
 
-/* =========================================================
-   BOTTOM NAV
-========================================================= */
+
+/* =========================
+NEXT STEP
+========================= */
+
+function handleNext(n) {
+
+  /*
+  STEP 1 → SYMBOL
+  */
+
+  if (n === 2) {
+
+    const symbol =
+      $("symbol")
+        ?.value
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      !symbol ||
+      !/^[A-Z0-9._-]{2,20}$/.test(symbol)
+    ) {
+
+      toast("نماد نامعتبره.");
+      return;
+
+    }
+
+
+    draft.symbol = symbol;
+
+  }
+
+
+  /*
+  STEP 3 → ENTRY
+  */
+
+  if (n === 4) {
+
+    const entry =
+      Number(
+        $("entry")?.value
+      );
+
+
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0
+    ) {
+
+      toast("Entry نامعتبره.");
+      return;
+
+    }
+
+
+    draft.entry = entry;
+
+  }
+
+
+  /*
+  STEP 4 → SL
+  */
+
+  if (n === 5) {
+
+    const sl =
+      Number(
+        $("sl")?.value
+      );
+
+
+    if (
+      !Number.isFinite(sl) ||
+      sl <= 0
+    ) {
+
+      toast("Stop Loss نامعتبره.");
+      return;
+
+    }
+
+
+    draft.sl = sl;
+
+  }
+
+
+  showStep(n);
+
+}
+
+
+/* =========================
+OPEN TRADE
+========================= */
+
+const openTradeButton =
+  $("openTrade");
+
+if (openTradeButton) {
+
+  openTradeButton.addEventListener(
+    "click",
+    openModal
+  );
+
+}
+
+
+/* =========================
+CANCEL TRADE
+========================= */
+
+const cancelTradeButton =
+  $("cancelTrade");
+
+if (cancelTradeButton) {
+
+  cancelTradeButton.addEventListener(
+    "click",
+    closeModal
+  );
+
+}
+
+
+/* =========================
+CLOSE TELEGRAM
+========================= */
+
+const closeButton =
+  $("closeBtn");
+
+if (closeButton) {
+
+  closeButton.addEventListener(
+    "click",
+    () => {
+
+      if (tg) {
+
+        tg.close();
+
+      }
+
+      else {
+
+        window.history.back();
+
+      }
+
+    }
+  );
+
+}
+
+
+/* =========================
+PREVIEW
+========================= */
+
+const previewButton =
+  $("preview");
+
+if (previewButton) {
+
+  previewButton.addEventListener(
+    "click",
+    () => {
+
+      const tp =
+        Number(
+          $("tp")?.value
+        );
+
+
+      if (
+        !Number.isFinite(tp) ||
+        tp <= 0
+      ) {
+
+        toast("Take Profit نامعتبره.");
+        return;
+
+      }
+
+
+      draft.tp = tp;
+
+      showPreview();
+
+    }
+  );
+
+}
+
+
+/* =========================
+SAVE
+========================= */
+
+const saveTradeButton =
+  $("saveTrade");
+
+if (saveTradeButton) {
+
+  saveTradeButton.addEventListener(
+    "click",
+    saveTrade
+  );
+
+}
+
+
+/* =========================
+EDIT
+========================= */
+
+const editTradeButton =
+  $("editTrade");
+
+if (editTradeButton) {
+
+  editTradeButton.addEventListener(
+    "click",
+    () => {
+
+      showStep(5);
+
+    }
+  );
+
+}
+
+
+/* =========================
+NEXT BUTTONS
+========================= */
 
 document
-  .querySelectorAll(".bottom-nav [data-tab]")
-  .forEach((button) => {
+  .querySelectorAll(".next")
+  .forEach(button => {
 
-    button.addEventListener("click", () => {
+    button.addEventListener(
+      "click",
+      () => {
 
-      document
-        .querySelectorAll(".bottom-nav [data-tab]")
-        .forEach((btn) => {
-          btn.classList.remove("active");
-        });
-
-      button.classList.add("active");
-
-      const tab = button.dataset.tab;
-
-      if (tab === "home") {
-
-        window.scrollTo({
-          top: 0,
-          behavior: "smooth"
-        });
+        handleNext(
+          Number(
+            button.dataset.next
+          )
+        );
 
       }
-
-      else if (tab === "trades") {
-
-        document
-          .querySelector(".recent")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-
-      }
-
-      else if (tab === "stats") {
-
-        document
-          .querySelector(".stats")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-          });
-
-      }
-
-    });
+    );
 
   });
 
-/* =========================================================
-   OPEN / CLOSE BUTTONS
-========================================================= */
 
-$("openTrade")?.addEventListener(
-  "click",
-  openModal
-);
+/* =========================
+BUY / SELL
+========================= */
 
-$("cancelTrade")?.addEventListener(
-  "click",
-  closeModal
-);
+document
+  .querySelectorAll("[data-dir]")
+  .forEach(button => {
 
-$("closeBtn")?.addEventListener(
-  "click",
-  () => {
+    button.addEventListener(
+      "click",
+      () => {
 
-    if (tg) {
-      tg.close();
-    } else {
-      window.history.back();
+        draft.direction =
+          button.dataset.dir;
+
+
+        /*
+        Visual selected state
+        */
+
+        document
+          .querySelectorAll("[data-dir]")
+          .forEach(item => {
+            item.classList.remove(
+              "selected"
+            );
+          });
+
+
+        button.classList.add(
+          "selected"
+        );
+
+
+        showStep(3);
+
+      }
+    );
+
+  });
+
+
+/* =========================
+TRADE RESULT BUTTONS
+========================= */
+
+const recent =
+  document.querySelector(".recent");
+
+
+if (recent) {
+
+  recent.addEventListener(
+    "click",
+    event => {
+
+      const button =
+        event.target.closest(
+          "[data-result]"
+        );
+
+
+      if (!button) {
+        return;
+      }
+
+
+      const id =
+        Number(
+          button.dataset.id
+        );
+
+
+      const result =
+        button.dataset.result;
+
+
+      setResult(
+        id,
+        result
+      );
+
     }
+  );
+
+}
+
+
+/* =========================
+BOTTOM NAV
+========================= */
+
+document
+  .querySelectorAll(
+    ".bottom-nav button"
+  )
+  .forEach(button => {
+
+    button.addEventListener(
+      "click",
+      () => {
+
+        document
+          .querySelectorAll(
+            ".bottom-nav button"
+          )
+          .forEach(item => {
+
+            item.classList.remove(
+              "active"
+            );
+
+          });
+
+
+        button.classList.add(
+          "active"
+        );
+
+
+        /*
+        TRADES
+        */
+
+        if (
+          button.dataset.tab ===
+          "trades"
+        ) {
+
+          const recent =
+            document.querySelector(
+              ".recent"
+            );
+
+
+          if (recent) {
+
+            recent.scrollIntoView({
+              behavior: "smooth"
+            });
+
+          }
+
+        }
+
+
+        /*
+        STATS
+        */
+
+        else if (
+          button.dataset.tab ===
+          "stats"
+        ) {
+
+          const hero =
+            document.querySelector(
+              ".hero"
+            );
+
+
+          if (hero) {
+
+            hero.scrollIntoView({
+              behavior: "smooth"
+            });
+
+          }
+
+        }
+
+
+        /*
+        HOME
+        */
+
+        else {
+
+          window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+          });
+
+        }
+
+      }
+    );
+
+  });
+
+
+/* =========================
+TELEGRAM USER
+========================= */
+
+if (
+  tg?.initDataUnsafe?.user?.first_name
+) {
+
+  const greeting =
+    $("greeting");
+
+
+  if (greeting) {
+
+    greeting.textContent =
+      "WELCOME, " +
+      tg
+        .initDataUnsafe
+        .user
+        .first_name
+        .toUpperCase();
 
   }
-);
 
-/* =========================================================
-   MODAL BACKDROP
-========================================================= */
+}
 
-tradeModal?.addEventListener("click", (event) => {
 
-  if (event.target === tradeModal) {
-    closeModal();
-  }
+/* =========================
+START
+========================= */
 
-});
-
-/* =================================
+loadTrades();
