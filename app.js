@@ -1,27 +1,30 @@
 /* =========================================================
-PIPINO — TRADING JOURNAL
-Version 2
+   PIPINO — TRADING JOURNAL
+   Version 2
 ========================================================= */
 
+
 /* =========================
-TELEGRAM
+   TELEGRAM
 ========================= */
 
 const tg = window.Telegram?.WebApp;
 
 if (tg) {
-tg.ready();
-tg.expand();
+  tg.ready();
+  tg.expand();
 }
 
+
 /* =========================
-HELPERS
+   HELPERS
 ========================= */
 
 const $ = id => document.getElementById(id);
 
+
 /* =========================
-STORAGE
+   STORAGE
 ========================= */
 
 const cloud = tg?.CloudStorage || null;
@@ -29,1300 +32,1414 @@ const cloud = tg?.CloudStorage || null;
 const CLOUD_KEY = "pipino_trades_v2";
 
 const userId =
-tg?.initDataUnsafe?.user?.id
-? String(tg.initDataUnsafe.user.id)
-: "guest";
+  tg?.initDataUnsafe?.user?.id
+    ? String(tg.initDataUnsafe.user.id)
+    : "guest";
 
 const LOCAL_KEY =
-pipino_trades_v2_${userId};
+  `pipino_trades_v2_${userId}`;
+
 
 /* =========================
-STATE
+   STATE
 ========================= */
 
 let trades = [];
 
 let draft = {
-symbol: "",
-direction: "",
-entry: null,
-sl: null,
-tp: null
+  symbol: "",
+  direction: "",
+  entry: null,
+  sl: null,
+  tp: null
 };
 
+
 /* =========================
-TOAST
+   TOAST
 ========================= */
 
 function toast(text) {
 
-const element = $("toast");
+  const element = $("toast");
 
-if (!element) return;
+  if (!element) return;
 
-element.textContent = text;
+  element.textContent = text;
 
-element.classList.remove("hidden");
+  element.classList.remove("hidden");
 
-clearTimeout(window.__toastTimer);
+  clearTimeout(window.__toastTimer);
 
-window.__toastTimer = setTimeout(() => {
+  window.__toastTimer = setTimeout(() => {
 
-element.classList.add("hidden");
+    element.classList.add("hidden");
 
-}, 1800);
+  }, 1800);
 }
 
+
 /* =========================
-CLOUD GET
+   CLOUD GET
 ========================= */
 
 function cloudGet(key) {
 
-return new Promise(resolve => {
+  return new Promise(resolve => {
 
-if (!cloud) {
-resolve(null);
-return;
+    if (!cloud) {
+      resolve(null);
+      return;
+    }
+
+    cloud.getItem(key, (err, value) => {
+
+      if (err) {
+        resolve(null);
+        return;
+      }
+
+      resolve(value);
+
+    });
+
+  });
+
 }
 
-cloud.getItem(key, (err, value) => {
-
-if (err) {
-resolve(null);
-return;
-}
-
-resolve(value);
-
-});
-
-});
-
-}
 
 /* =========================
-CLOUD SET
+   CLOUD SET
 ========================= */
 
 function cloudSet(key, value) {
 
-return new Promise(resolve => {
+  return new Promise(resolve => {
 
-if (!cloud) {
-resolve(false);
-return;
+    if (!cloud) {
+      resolve(false);
+      return;
+    }
+
+    cloud.setItem(key, value, err => {
+
+      resolve(!err);
+
+    });
+
+  });
+
 }
 
-cloud.setItem(key, value, err => {
-
-resolve(!err);
-
-});
-
-});
-
-}
 
 /* =========================
-LOAD TRADES
+   LOAD TRADES
 ========================= */
 
 async function loadTrades() {
 
-let loaded = null;
+  let loaded = null;
 
-/*
-Telegram CloudStorage
-داده‌ها به کاربر تلگرام وابسته‌اند.
-*/
 
-const cloudValue =
-await cloudGet(CLOUD_KEY);
+  /*
+    Telegram CloudStorage
+    داده‌ها به کاربر تلگرام وابسته‌اند.
+  */
 
-if (cloudValue) {
+  const cloudValue =
+    await cloudGet(CLOUD_KEY);
 
-try {
 
-loaded =
-JSON.parse(cloudValue);
+  if (cloudValue) {
 
-} catch (error) {
+    try {
 
-loaded = null;
+      loaded =
+        JSON.parse(cloudValue);
+
+    } catch (error) {
+
+      loaded = null;
+
+    }
+
+  }
+
+
+  /*
+    LocalStorage fallback
+  */
+
+  if (!Array.isArray(loaded)) {
+
+    try {
+
+      loaded =
+        JSON.parse(
+          localStorage.getItem(LOCAL_KEY) || "[]"
+        );
+
+    } catch (error) {
+
+      loaded = [];
+
+    }
+
+  }
+
+
+  trades =
+    Array.isArray(loaded)
+      ? loaded
+      : [];
+
+
+  render();
 
 }
 
-}
-
-/*
-LocalStorage fallback
-*/
-
-if (!Array.isArray(loaded)) {
-
-try {
-
-loaded =
-JSON.parse(
-localStorage.getItem(LOCAL_KEY) || "[]"
-);
-
-} catch (error) {
-
-loaded = [];
-
-}
-
-}
-
-trades =
-Array.isArray(loaded)
-? loaded
-: [];
-
-render();
-
-}
 
 /* =========================
-SAVE DATA
+   SAVE DATA
 ========================= */
 
 async function persist() {
 
-const json =
-JSON.stringify(trades);
+  const json =
+    JSON.stringify(trades);
 
-/*
-Local backup
-*/
 
-try {
+  /*
+    Local backup
+  */
 
-localStorage.setItem(
-LOCAL_KEY,
-json
-);
+  try {
 
-} catch (error) {
+    localStorage.setItem(
+      LOCAL_KEY,
+      json
+    );
 
-console.warn(
-"LocalStorage unavailable",
-error
-);
+  } catch (error) {
+
+    console.warn(
+      "LocalStorage unavailable",
+      error
+    );
+
+  }
+
+
+  /*
+    Telegram CloudStorage
+  */
+
+  await cloudSet(
+    CLOUD_KEY,
+    json
+  );
+
+
+  render();
 
 }
 
-/*
-Telegram CloudStorage
-*/
-
-await cloudSet(
-CLOUD_KEY,
-json
-);
-
-render();
-
-}
 
 /* =========================
-STEP CONTROL
+   STEP CONTROL
 ========================= */
 
 function showStep(n) {
 
-document
-.querySelectorAll(".step")
-.forEach(element => {
+  document
+    .querySelectorAll(".step")
+    .forEach(element => {
 
-element.classList.add("hidden");
+      element.classList.add("hidden");
 
-});
+    });
 
-const step =
-$("step" + n);
 
-if (step) {
+  const step =
+    $("step" + n);
 
-step.classList.remove("hidden");
+
+  if (step) {
+
+    step.classList.remove("hidden");
+
+  }
 
 }
 
-}
 
 /* =========================
-RESET DRAFT
+   RESET DRAFT
 ========================= */
 
 function resetDraft() {
 
-draft = {
-symbol: "",
-direction: "",
-entry: null,
-sl: null,
-tp: null
-};
+  draft = {
+    symbol: "",
+    direction: "",
+    entry: null,
+    sl: null,
+    tp: null
+  };
 
-[
-"symbol",
-"entry",
-"sl",
-"tp"
-].forEach(id => {
 
-const element = $(id);
+  [
+    "symbol",
+    "entry",
+    "sl",
+    "tp"
+  ].forEach(id => {
 
-if (element) {
-element.value = "";
+    const element = $(id);
+
+    if (element) {
+      element.value = "";
+    }
+
+  });
+
+
+  showStep(1);
+
 }
 
-});
-
-showStep(1);
-
-}
 
 /* =========================
-OPEN MODAL
+   OPEN MODAL
 ========================= */
 
 function openModal() {
 
-resetDraft();
+  resetDraft();
 
-$("tradeModal")
-.classList
-.remove("hidden");
+  $("tradeModal")
+    .classList
+    .remove("hidden");
 
 }
 
+
 /* =========================
-CLOSE MODAL
+   CLOSE MODAL
 ========================= */
 
 function closeModal() {
 
-$("tradeModal")
-.classList
-.add("hidden");
+  $("tradeModal")
+    .classList
+    .add("hidden");
 
 }
 
+
 /* =========================
-CALCULATE R:R
+   CALCULATE R:R
 ========================= */
 
 function calcR(trade) {
 
-const risk =
-trade.direction === "BUY"
+  const risk =
+    trade.direction === "BUY"
 
-? trade.entry - trade.sl
+      ? trade.entry - trade.sl
 
-: trade.sl - trade.entry;
+      : trade.sl - trade.entry;
 
-const reward =
-trade.direction === "BUY"
 
-? trade.tp - trade.entry
+  const reward =
+    trade.direction === "BUY"
 
-: trade.entry - trade.tp;
+      ? trade.tp - trade.entry
 
-if (
-risk <= 0 ||
-reward <= 0
-) {
+      : trade.entry - trade.tp;
 
-return null;
+
+  if (
+    risk <= 0 ||
+    reward <= 0
+  ) {
+
+    return null;
+
+  }
+
+
+  return reward / risk;
 
 }
 
-return reward / risk;
-
-}
 
 /* =========================
-VALIDATE TRADE
+   VALIDATE TRADE
 ========================= */
 
 function validateTrade() {
 
-const symbol =
-draft.symbol
-.trim()
-.toUpperCase();
+  const symbol =
+    draft.symbol
+      .trim()
+      .toUpperCase();
 
-const entry =
-Number(draft.entry);
 
-const sl =
-Number(draft.sl);
+  const entry =
+    Number(draft.entry);
 
-const tp =
-Number(draft.tp);
+  const sl =
+    Number(draft.sl);
 
-/* Symbol */
+  const tp =
+    Number(draft.tp);
 
-if (
-!/^[A-Z0-9._-]{2,20}$/
-.test(symbol)
-) {
 
-return "نماد نامعتبره.";
+  /* Symbol */
+
+  if (
+    !/^[A-Z0-9._-]{2,20}$/
+      .test(symbol)
+  ) {
+
+    return "نماد نامعتبره.";
+
+  }
+
+
+  /* Direction */
+
+  if (!draft.direction) {
+
+    return "جهت معامله رو انتخاب کن.";
+
+  }
+
+
+  /* Prices */
+
+  if (
+    ![
+      entry,
+      sl,
+      tp
+    ].every(Number.isFinite)
+    ||
+    entry <= 0
+    ||
+    sl <= 0
+    ||
+    tp <= 0
+  ) {
+
+    return "قیمت‌ها باید معتبر و بزرگ‌تر از صفر باشن.";
+
+  }
+
+
+  /* BUY */
+
+  if (
+    draft.direction === "BUY"
+    &&
+    !(
+      sl < entry &&
+      tp > entry
+    )
+  ) {
+
+    return (
+      "برای BUY باید SL پایین‌تر از Entry و TP بالاتر از Entry باشه."
+    );
+
+  }
+
+
+  /* SELL */
+
+  if (
+    draft.direction === "SELL"
+    &&
+    !(
+      sl > entry &&
+      tp < entry
+    )
+  ) {
+
+    return (
+      "برای SELL باید SL بالاتر از Entry و TP پایین‌تر از Entry باشه."
+    );
+
+  }
+
+
+  draft.symbol =
+    symbol;
+
+  draft.entry =
+    entry;
+
+  draft.sl =
+    sl;
+
+  draft.tp =
+    tp;
+
+
+  return null;
 
 }
 
-/* Direction */
-
-if (!draft.direction) {
-
-return "جهت معامله رو انتخاب کن.";
-
-}
-
-/* Prices */
-
-if (
-![
-entry,
-sl,
-tp
-].every(Number.isFinite)
-||
-entry <= 0
-||
-sl <= 0
-||
-tp <= 0
-) {
-
-return "قیمت‌ها باید معتبر و بزرگ‌تر از صفر باشن.";
-
-}
-
-/* BUY */
-
-if (
-draft.direction === "BUY"
-&&
-!(
-sl < entry &&
-tp > entry
-)
-) {
-
-return (
-"برای BUY باید SL پایین‌تر از Entry و TP بالاتر از Entry باشه."
-);
-
-}
-
-/* SELL */
-
-if (
-draft.direction === "SELL"
-&&
-!(
-sl > entry &&
-tp < entry
-)
-) {
-
-return (
-"برای SELL باید SL بالاتر از Entry و TP پایین‌تر از Entry باشه."
-);
-
-}
-
-draft.symbol =
-symbol;
-
-draft.entry =
-entry;
-
-draft.sl =
-sl;
-
-draft.tp =
-tp;
-
-return null;
-
-}
 
 /* =========================
-PREVIEW
+   PREVIEW
 ========================= */
 
 function showPreview() {
 
-const error =
-validateTrade();
+  const error =
+    validateTrade();
 
-if (error) {
 
-toast(error);
+  if (error) {
 
-return;
+    toast(error);
+
+    return;
+
+  }
+
+
+  const rr =
+    calcR(draft);
+
+
+  if (!rr) {
+
+    toast("R:R قابل محاسبه نیست.");
+
+    return;
+
+  }
+
+
+  const direction =
+    draft.direction === "BUY"
+      ? "🟢 BUY"
+      : "🔴 SELL";
+
+
+  $("previewBox").innerHTML = `
+
+    <div>
+      <b>${draft.symbol}</b>
+      &nbsp;
+      ${direction}
+    </div>
+
+    <div>
+      Entry:
+      <span class="ltr">
+        ${draft.entry}
+      </span>
+    </div>
+
+    <div>
+      Stop Loss:
+      <span class="ltr">
+        ${draft.sl}
+      </span>
+    </div>
+
+    <div>
+      Take Profit:
+      <span class="ltr">
+        ${draft.tp}
+      </span>
+    </div>
+
+    <div>
+      R:R:
+      <b class="ltr">
+        1 : ${rr.toFixed(2)}
+      </b>
+    </div>
+
+    <div class="status">
+      نتیجه فعلاً: OPEN
+    </div>
+
+  `;
+
+
+  showStep(6);
 
 }
 
-const rr =
-calcR(draft);
-
-if (!rr) {
-
-toast("R:R قابل محاسبه نیست.");
-
-return;
-
-}
-
-const direction =
-draft.direction === "BUY"
-? "🟢 BUY"
-: "🔴 SELL";
-
-$("previewBox").innerHTML = `
-
-<div>    
-  <b>${draft.symbol}</b>    
-  &nbsp;    
-  ${direction}    
-</div>    <div>    
-  Entry:    
-  <span class="ltr">    
-    ${draft.entry}    
-  </span>    
-</div>    <div>    
-  Stop Loss:    
-  <span class="ltr">    
-    ${draft.sl}    
-  </span>    
-</div>    <div>    
-  Take Profit:    
-  <span class="ltr">    
-    ${draft.tp}    
-  </span>    
-</div>    <div>    
-  R:R:    
-  <b class="ltr">    
-    1 : ${rr.toFixed(2)}    
-  </b>    
-</div>    <div class="status">    
-  نتیجه فعلاً: OPEN    
-</div>  `;
-
-showStep(6);
-
-}
 
 /* =========================
-SAVE TRADE
+   SAVE TRADE
 ========================= */
 
 async function saveTrade() {
 
-const error =
-validateTrade();
+  const error =
+    validateTrade();
 
-if (error) {
 
-toast(error);
+  if (error) {
 
-return;
+    toast(error);
+
+    return;
+
+  }
+
+
+  const rr =
+    calcR(draft);
+
+
+  if (!rr) {
+
+    toast("R:R نامعتبره.");
+
+    return;
+
+  }
+
+
+  const trade = {
+
+    id:
+      Date.now(),
+
+    symbol:
+      draft.symbol,
+
+    direction:
+      draft.direction,
+
+    entry:
+      draft.entry,
+
+    sl:
+      draft.sl,
+
+    tp:
+      draft.tp,
+
+    rr:
+      Number(
+        rr.toFixed(4)
+      ),
+
+    result:
+      "OPEN",
+
+    createdAt:
+      new Date().toISOString()
+
+  };
+
+
+  trades.unshift(trade);
+
+
+  await persist();
+
+
+  closeModal();
+
+
+  toast("✓ معامله ثبت شد");
 
 }
 
-const rr =
-calcR(draft);
-
-if (!rr) {
-
-toast("R:R نامعتبره.");
-
-return;
-
-}
-
-const trade = {
-
-id:
-Date.now(),
-
-symbol:
-draft.symbol,
-
-direction:
-draft.direction,
-
-entry:
-draft.entry,
-
-sl:
-draft.sl,
-
-tp:
-draft.tp,
-
-rr:
-Number(
-rr.toFixed(4)
-),
-
-result:
-"OPEN",
-
-createdAt:
-new Date().toISOString()
-
-};
-
-trades.unshift(trade);
-
-await persist();
-
-closeModal();
-
-toast("✓ معامله ثبت شد");
-
-}
 
 /* =========================
-SET TRADE RESULT
+   SET TRADE RESULT
 ========================= */
 
 async function setResult(
-id,
-result
+  id,
+  result
 ) {
 
-const trade =
-trades.find(
-t => t.id === id
-);
+  const trade =
+    trades.find(
+      t => t.id === id
+    );
 
-if (!trade) {
-return;
+
+  if (!trade) {
+    return;
+  }
+
+
+  trade.result =
+    result;
+
+
+  trade.closedAt =
+    new Date().toISOString();
+
+
+  await persist();
+
+
+  if (result === "WIN") {
+
+    toast(
+      "✓ معامله Win شد"
+    );
+
+  }
+
+  else if (result === "LOSS") {
+
+    toast(
+      "✓ معامله Loss شد"
+    );
+
+  }
+
+  else {
+
+    toast(
+      "✓ Break Even شد"
+    );
+
+  }
+
 }
 
-trade.result =
-result;
-
-trade.closedAt =
-new Date().toISOString();
-
-await persist();
-
-if (result === "WIN") {
-
-toast(
-"✓ معامله Win شد"
-);
-
-}
-
-else if (result === "LOSS") {
-
-toast(
-"✓ معامله Loss شد"
-);
-
-}
-
-else {
-
-toast(
-"✓ Break Even شد"
-);
-
-}
-
-}
 
 /* =========================
-FORMAT R
+   FORMAT R
 ========================= */
 
 function formatR(n) {
 
-const x =
-Number(n || 0);
+  const x =
+    Number(n || 0);
 
-return (
-${x >= 0 ? "+" : ""} +
-${x.toFixed(2)}R
-);
+
+  return (
+    `${x >= 0 ? "+" : ""}` +
+    `${x.toFixed(2)}R`
+  );
 
 }
 
+
 /* =========================
-STATS
+   STATS
 ========================= */
 
 function stats() {
 
-const closed =
-trades.filter(
-t =>
-t.result &&
-t.result !== "OPEN"
-);
-
-const wins =
-closed.filter(
-t => t.result === "WIN"
-).length;
-
-const losses =
-closed.filter(
-t => t.result === "LOSS"
-).length;
-
-const be =
-closed.filter(
-t => t.result === "BE"
-).length;
-
-/*
-WIN = +R:R
-LOSS = -1R
-BE = 0R
-*/
-
-const netR =
-closed.reduce(
-(sum, trade) => {
-
-if (
-trade.result === "WIN"
-) {
-
-return (    
-    sum +    
-    Number(    
-      trade.rr || 0    
-    )    
-  );    
-
-}    
+  const closed =
+    trades.filter(
+      t =>
+        t.result &&
+        t.result !== "OPEN"
+    );
 
 
-if (    
-  trade.result === "LOSS"    
-) {    
-
-  return sum - 1;    
-
-}    
+  const wins =
+    closed.filter(
+      t => t.result === "WIN"
+    ).length;
 
 
-return sum;
+  const losses =
+    closed.filter(
+      t => t.result === "LOSS"
+    ).length;
 
-},
-0
-);
 
-return {
-closed,
-wins,
-losses,
-be,
-netR
-};
+  const be =
+    closed.filter(
+      t => t.result === "BE"
+    ).length;
+
+
+  /*
+    WIN = +R:R
+    LOSS = -1R
+    BE = 0R
+  */
+
+  const netR =
+    closed.reduce(
+      (sum, trade) => {
+
+        if (
+          trade.result === "WIN"
+        ) {
+
+          return (
+            sum +
+            Number(
+              trade.rr || 0
+            )
+          );
+
+        }
+
+
+        if (
+          trade.result === "LOSS"
+        ) {
+
+          return sum - 1;
+
+        }
+
+
+        return sum;
+
+      },
+      0
+    );
+
+
+  return {
+    closed,
+    wins,
+    losses,
+    be,
+    netR
+  };
 
 }
 
+
 /* =========================
-RENDER
+   RENDER
 ========================= */
 
 function render() {
 
-const s =
-stats();
+  const s =
+    stats();
 
-/*
-Trade count
-*/
 
-$("tradeCount")
-.textContent =
-trades.length;
+  /*
+    Trade count
+  */
 
-/*
-Portfolio
-*/
+  $("tradeCount")
+    .textContent =
+    trades.length;
 
-$("portfolio")
-.textContent =
-formatR(s.netR);
 
-/*
-Portfolio subtitle
-*/
+  /*
+    Portfolio
+  */
 
-$("portfolioSub")
-.textContent =
-${s.closed.length} closed • ${   trades.length -   s.closed.length   } open;
+  $("portfolio")
+    .textContent =
+    formatR(s.netR);
 
-/*
-Profit
-*/
 
-$("profit")
-.textContent =
-formatR(s.netR);
+  /*
+    Portfolio subtitle
+  */
 
-/*
-Win rate
-*/
+  $("portfolioSub")
+    .textContent =
+    `${s.closed.length} closed • ${
+      trades.length -
+      s.closed.length
+    } open`;
 
-const decided =
-s.wins +
-s.losses;
 
-$("winRate")
-.textContent =
-decided
-? ${Math.round(   (s.wins / decided) * 100   )}%
-: "—";
+  /*
+    Profit
+  */
 
-/*
-No trades
-*/
+  $("profit")
+    .textContent =
+    formatR(s.netR);
 
-if (!trades.length) {
 
-$("tradeList").innerHTML = `
+  /*
+    Win rate
+  */
 
-  <div class="empty">    
-    هنوز معامله‌ای ثبت نشده.    
-  </div>    
-`;    return;
+  const decided =
+    s.wins +
+    s.losses;
+
+
+  $("winRate")
+    .textContent =
+    decided
+      ? `${Math.round(
+          (s.wins / decided) * 100
+        )}%`
+      : "—";
+
+
+  /*
+    No trades
+  */
+
+  if (!trades.length) {
+
+    $("tradeList").innerHTML = `
+      <div class="empty">
+        هنوز معامله‌ای ثبت نشده.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  /*
+    Trade list
+  */
+
+  $("tradeList").innerHTML =
+
+    trades
+      .slice(0, 12)
+      .map(trade => {
+
+        const resultText =
+          trade.result === "WIN"
+            ? "WIN"
+
+            : trade.result === "LOSS"
+              ? "LOSS"
+
+              : trade.result === "BE"
+                ? "BREAK EVEN"
+
+                : "OPEN";
+
+
+        const resultClass =
+          trade.result === "WIN"
+            ? "win"
+
+            : trade.result === "LOSS"
+              ? "loss"
+
+              : "";
+
+
+        const direction =
+          trade.direction === "BUY"
+            ? "🟢 BUY"
+            : "🔴 SELL";
+
+
+        return `
+
+          <div class="trade">
+
+            <div class="trade-head">
+
+              <div class="trade-symbol">
+                ${trade.symbol}
+              </div>
+
+              <div
+                class="badge ${
+                  trade.direction === "BUY"
+                    ? "buy"
+                    : "sell"
+                }"
+              >
+                ${direction}
+              </div>
+
+            </div>
+
+
+            <div class="trade-meta">
+
+              <div>
+                Entry
+                <b>
+                  ${trade.entry}
+                </b>
+              </div>
+
+              <div>
+                SL
+                <b>
+                  ${trade.sl}
+                </b>
+              </div>
+
+              <div>
+                TP
+                <b>
+                  ${trade.tp}
+                </b>
+              </div>
+
+            </div>
+
+
+            <div
+              class="status ${resultClass}"
+            >
+              R:R 1:${Number(
+                trade.rr || 0
+              ).toFixed(2)}
+
+              •
+              ${resultText}
+            </div>
+
+
+            ${
+              trade.result === "OPEN"
+
+                ? `
+
+                  <div class="result-row">
+
+                    <button
+                      data-result="WIN"
+                      data-id="${trade.id}"
+                    >
+                      🟢 Win
+                    </button>
+
+                    <button
+                      data-result="LOSS"
+                      data-id="${trade.id}"
+                    >
+                      🔴 Loss
+                    </button>
+
+                    <button
+                      data-result="BE"
+                      data-id="${trade.id}"
+                    >
+                      ⚪ BE
+                    </button>
+
+                  </div>
+
+                `
+
+                : ""
+            }
+
+          </div>
+
+        `;
+
+      })
+      .join("");
 
 }
 
-/*
-Trade list
-*/
-
-$("tradeList").innerHTML =
-
-trades
-.slice(0, 12)
-.map(trade => {
-
-const resultText =    
-  trade.result === "WIN"    
-    ? "WIN"    
-
-    : trade.result === "LOSS"    
-      ? "LOSS"    
-
-      : trade.result === "BE"    
-        ? "BREAK EVEN"    
-
-        : "OPEN";    
-
-
-const resultClass =    
-  trade.result === "WIN"    
-    ? "win"    
-
-    : trade.result === "LOSS"    
-      ? "loss"    
-
-      : "";    
-
-
-const direction =    
-  trade.direction === "BUY"    
-    ? "🟢 BUY"    
-    : "🔴 SELL";    
-
-
-return `    
-
-  <div class="trade">    
-
-    <div class="trade-head">    
-
-      <div class="trade-symbol">    
-        ${trade.symbol}    
-      </div>    
-
-      <div    
-        class="badge ${    
-          trade.direction === "BUY"    
-            ? "buy"    
-            : "sell"    
-        }"    
-      >    
-        ${direction}    
-      </div>    
-
-    </div>    
-
-
-    <div class="trade-meta">    
-
-      <div>    
-        Entry    
-        <b>    
-          ${trade.entry}    
-        </b>    
-      </div>    
-
-      <div>    
-        SL    
-        <b>    
-          ${trade.sl}    
-        </b>    
-      </div>    
-
-      <div>    
-        TP    
-        <b>    
-          ${trade.tp}    
-        </b>    
-      </div>    
-
-    </div>    
-
-
-    <div    
-      class="status ${resultClass}"    
-    >    
-      R:R 1:${Number(    
-        trade.rr || 0    
-      ).toFixed(2)}    
-
-      •    
-      ${resultText}    
-    </div>    
-
-
-    ${    
-      trade.result === "OPEN"    
-
-        ? `    
-
-          <div class="result-row">    
-
-            <button    
-              data-result="WIN"    
-              data-id="${trade.id}"    
-            >    
-              🟢 Win    
-            </button>    
-
-            <button    
-              data-result="LOSS"    
-              data-id="${trade.id}"    
-            >    
-              🔴 Loss    
-            </button>    
-
-            <button    
-              data-result="BE"    
-              data-id="${trade.id}"    
-            >    
-              ⚪ BE    
-            </button>    
-
-          </div>    
-
-        `    
-
-        : ""    
-    }    
-
-  </div>    
-
-`;
-
-})
-.join("");
-
-}
 
 /* =========================
-NEXT STEP
+   NEXT STEP
 ========================= */
 
 function handleNext(n) {
 
-/*
-STEP 1 → SYMBOL
-*/
 
-if (n === 2) {
+  /*
+    STEP 1 → SYMBOL
+  */
 
-const symbol =
-$("symbol")
-.value
-.trim()
-.toUpperCase();
+  if (n === 2) {
 
-if (
-!/^[A-Z0-9._-]{2,20}$/
-.test(symbol)
-) {
+    const symbol =
+      $("symbol")
+        .value
+        .trim()
+        .toUpperCase();
 
-toast(
-"نماد نامعتبره."
-);
 
-return;
+    if (
+      !/^[A-Z0-9._-]{2,20}$/
+        .test(symbol)
+    ) {
+
+      toast(
+        "نماد نامعتبره."
+      );
+
+      return;
+
+    }
+
+
+    draft.symbol =
+      symbol;
+
+  }
+
+
+  /*
+    STEP 3 → ENTRY
+  */
+
+  if (n === 4) {
+
+    const entry =
+      Number(
+        $("entry").value
+      );
+
+
+    if (
+      !Number.isFinite(entry)
+      ||
+      entry <= 0
+    ) {
+
+      toast(
+        "Entry نامعتبره."
+      );
+
+      return;
+
+    }
+
+
+    draft.entry =
+      entry;
+
+  }
+
+
+  /*
+    STEP 4 → SL
+  */
+
+  if (n === 5) {
+
+    const sl =
+      Number(
+        $("sl").value
+      );
+
+
+    if (
+      !Number.isFinite(sl)
+      ||
+      sl <= 0
+    ) {
+
+      toast(
+        "Stop Loss نامعتبره."
+      );
+
+      return;
+
+    }
+
+
+    draft.sl =
+      sl;
+
+  }
+
+
+  showStep(n);
 
 }
 
-draft.symbol =
-symbol;
-
-}
-
-/*
-STEP 3 → ENTRY
-*/
-
-if (n === 4) {
-
-const entry =
-Number(
-$("entry").value
-);
-
-if (
-!Number.isFinite(entry)
-||
-entry <= 0
-) {
-
-toast(
-"Entry نامعتبره."
-);
-
-return;
-
-}
-
-draft.entry =
-entry;
-
-}
-
-/*
-STEP 4 → SL
-*/
-
-if (n === 5) {
-
-const sl =
-Number(
-$("sl").value
-);
-
-if (
-!Number.isFinite(sl)
-||
-sl <= 0
-) {
-
-toast(
-"Stop Loss نامعتبره."
-);
-
-return;
-
-}
-
-draft.sl =
-sl;
-
-}
-
-showStep(n);
-
-}
 
 /* =========================
-OPEN TRADE
+   OPEN TRADE
 ========================= */
 
 $("openTrade")
-.addEventListener(
-"click",
-openModal
-);
+  .addEventListener(
+    "click",
+    openModal
+  );
+
 
 /* =========================
-CANCEL TRADE
+   CANCEL TRADE
 ========================= */
 
 $("cancelTrade")
-.addEventListener(
-"click",
-closeModal
-);
+  .addEventListener(
+    "click",
+    closeModal
+  );
+
 
 /* =========================
-CLOSE TELEGRAM
+   CLOSE TELEGRAM
 ========================= */
 
 $("closeBtn")
-.addEventListener(
-"click",
-() => {
+  .addEventListener(
+    "click",
+    () => {
 
-if (tg) {
+      if (tg) {
 
-tg.close();
+        tg.close();
 
-}
+      }
 
-else {
+      else {
 
-window.history.back();
+        window.history.back();
 
-}
+      }
 
-}
+    }
+  );
 
-);
 
 /* =========================
-PREVIEW BUTTON
+   PREVIEW BUTTON
 ========================= */
 
 $("preview")
-.addEventListener(
-"click",
-() => {
+  .addEventListener(
+    "click",
+    () => {
 
-draft.tp =
-Number(
-$("tp").value
-);
+      draft.tp =
+        Number(
+          $("tp").value
+        );
 
-showPreview();
 
-}
+      showPreview();
 
-);
+    }
+  );
+
 
 /* =========================
-SAVE
+   SAVE
 ========================= */
 
 $("saveTrade")
-.addEventListener(
-"click",
-saveTrade
-);
+  .addEventListener(
+    "click",
+    saveTrade
+  );
+
 
 /* =========================
-EDIT
+   EDIT
 ========================= */
 
 $("editTrade")
-.addEventListener(
-"click",
-() => {
+  .addEventListener(
+    "click",
+    () => {
 
-showStep(5);
+      showStep(5);
 
-}
+    }
+  );
 
-);
 
 /* =========================
-NEXT BUTTONS
+   NEXT BUTTONS
 ========================= */
 
 document
-.querySelectorAll(".next")
-.forEach(button => {
+  .querySelectorAll(".next")
+  .forEach(button => {
 
-button.addEventListener(
-"click",
-() => {
+    button.addEventListener(
+      "click",
+      () => {
 
-handleNext(    
-  Number(    
-    button.dataset.next    
-  )    
-);
+        handleNext(
+          Number(
+            button.dataset.next
+          )
+        );
 
-}
-);
+      }
+    );
 
-});
+  });
+
 
 /* =========================
-BUY / SELL
+   BUY / SELL
 ========================= */
 
 document
-.querySelectorAll("[data-dir]")
-.forEach(button => {
+  .querySelectorAll("[data-dir]")
+  .forEach(button => {
 
-button.addEventListener(
-"click",
-() => {
+    button.addEventListener(
+      "click",
+      () => {
 
-draft.direction =    
-  button.dataset.dir;    
+        draft.direction =
+          button.dataset.dir;
 
 
-showStep(3);
+        showStep(3);
 
-}
-);
+      }
+    );
 
-});
+  });
+
 
 /* =========================
-TRADE RESULT BUTTONS
+   TRADE RESULT BUTTONS
 ========================= */
 
 document
-.querySelector(".recent")
-.addEventListener(
-"click",
-event => {
+  .querySelector(".recent")
+  .addEventListener(
+    "click",
+    event => {
 
-const button =
-event.target.closest(
-"[data-result]"
-);
+      const button =
+        event.target.closest(
+          "[data-result]"
+        );
 
-if (!button) {
-return;
-}
 
-setResult(
-Number(
-button.dataset.id
-),
-button.dataset.result
-);
+      if (!button) {
+        return;
+      }
 
-}
 
-);
+      setResult(
+        Number(
+          button.dataset.id
+        ),
+        button.dataset.result
+      );
+
+    }
+  );
+
 
 /* =========================
-BOTTOM NAV
+   BOTTOM NAV
 ========================= */
 
 document
-.querySelectorAll(
-".bottom-nav button"
-)
-.forEach(button => {
+  .querySelectorAll(
+    ".bottom-nav button"
+  )
+  .forEach(button => {
 
-button.addEventListener(
-"click",
-() => {
+    button.addEventListener(
+      "click",
+      () => {
 
-document    
-  .querySelectorAll(    
-    ".bottom-nav button"    
-  )    
-  .forEach(item => {    
+        document
+          .querySelectorAll(
+            ".bottom-nav button"
+          )
+          .forEach(item => {
 
-    item.classList.remove(    
-      "active"    
-    );    
+            item.classList.remove(
+              "active"
+            );
 
-  });    
-
-
-button.classList.add(    
-  "active"    
-);    
+          });
 
 
-/*    
-  TRADES    
-*/    
-
-if (    
-  button.dataset.tab ===    
-  "trades"    
-) {    
-
-  document    
-    .querySelector(".recent")    
-    .scrollIntoView({    
-      behavior:"smooth"    
-    });    
-
-}    
+        button.classList.add(
+          "active"
+        );
 
 
-/*    
-  STATS    
-*/    
+        /*
+          TRADES
+        */
 
-else if (    
-  button.dataset.tab ===    
-  "stats"    
-) {    
+        if (
+          button.dataset.tab ===
+          "trades"
+        ) {
 
-  document    
-    .querySelector(".hero")    
-    .scrollIntoView({    
-      behavior:"smooth"    
-    });    
+          document
+            .querySelector(".recent")
+            .scrollIntoView({
+              behavior:"smooth"
+            });
 
-}    
+        }
 
 
-/*    
-  HOME    
-*/    
+        /*
+          STATS
+        */
 
-else {    
+        else if (
+          button.dataset.tab ===
+          "stats"
+        ) {
 
-  window.scrollTo({    
-    top:0,    
-    behavior:"smooth"    
-  });    
+          document
+            .querySelector(".hero")
+            .scrollIntoView({
+              behavior:"smooth"
+            });
 
-}
+        }
 
-}
-);
 
-});
+        /*
+          HOME
+        */
+
+        else {
+
+          window.scrollTo({
+            top:0,
+            behavior:"smooth"
+          });
+
+        }
+
+      }
+    );
+
+  });
+
 
 /* =========================
-TELEGRAM USER
+   TELEGRAM USER
 ========================= */
 
 if (
-tg?.initDataUnsafe?.user?.first_name
+  tg?.initDataUnsafe?.user?.first_name
 ) {
 
-$("greeting")
-.textContent =
-"WELCOME, " +
-tg
-.initDataUnsafe
-.user
-.first_name
-.toUpperCase();
+  $("greeting")
+    .textContent =
+      "WELCOME, " +
+      tg
+        .initDataUnsafe
+        .user
+        .first_name
+        .toUpperCase();
 
 }
 
+
 /* =========================
-START
+   START
 ========================= */
 
 loadTrades();
