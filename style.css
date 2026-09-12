@@ -29,23 +29,18 @@
   --muted:#7e9789;
 }
 
-
 html,
 body{
   margin:0;
   padding:0;
-
   min-height:100%;
-
   background:#020907;
 }
-
 
 body{
   overflow-x:hidden;
 
   background:
-
     radial-gradient(
       900px 600px at -15% -10%,
       rgba(0,255,115,.38),
@@ -72,17 +67,13 @@ body{
     );
 }
 
-
 body::before{
   content:"";
-
   position:fixed;
   inset:0;
-
   pointer-events:none;
 
   background:
-
     linear-gradient(
       125deg,
       rgba(255,255,255,.025),
@@ -93,10 +84,8 @@ body::before{
   z-index:0;
 }
 
-
 body::after{
   content:"";
-
   position:fixed;
 
   width:400px;
@@ -112,26 +101,22 @@ body::after{
   filter:blur(90px);
 
   pointer-events:none;
-
   z-index:0;
 }
-
 
 button,
 input{
   font:inherit;
 }
 
-
 button{
   border:0;
   cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
-
 
 .app{
   position:relative;
-
   z-index:1;
 
   width:100%;
@@ -143,6 +128,21 @@ button{
     20px
     16px
     105px;
+
+  animation:
+    appEnter .55s cubic-bezier(.22,1,.36,1) both;
+}
+
+@keyframes appEnter{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
 }
 
 
@@ -159,12 +159,9 @@ button{
   margin-bottom:18px;
 }
 
-
 .brand{
   font-size:27px;
-
   font-weight:950;
-
   letter-spacing:3px;
 
   background:
@@ -184,7 +181,6 @@ button{
     0 0 30px rgba(93,245,143,.16);
 }
 
-
 .muted{
   color:#769184;
 
@@ -196,7 +192,6 @@ button{
 
   font-weight:700;
 }
-
 
 .icon-btn{
   width:42px;
@@ -229,13 +224,13 @@ button{
     0 12px 35px rgba(0,0,0,.20);
 
   transition:
-    transform .18s ease,
-    background .18s ease;
+    transform .22s cubic-bezier(.22,1,.36,1),
+    background .22s ease,
+    box-shadow .22s ease;
 }
 
-
 .icon-btn:active{
-  transform:scale(.94);
+  transform:scale(.92);
 }
 
 
@@ -247,7 +242,6 @@ button{
   position:relative;
 
   background:
-
     linear-gradient(
       135deg,
       rgba(255,255,255,.075),
@@ -261,11 +255,8 @@ button{
   border-radius:25px;
 
   box-shadow:
-
     inset 0 1px 0 rgba(255,255,255,.10),
-
     inset 0 -1px 0 rgba(0,0,0,.25),
-
     0 20px 60px rgba(0,0,0,.30);
 
   backdrop-filter:
@@ -275,6 +266,11 @@ button{
   -webkit-backdrop-filter:
     blur(26px)
     saturate(145%);
+
+  transition:
+    transform .28s cubic-bezier(.22,1,.36,1),
+    border-color .28s ease,
+    box-shadow .28s ease;
 }
 
 
@@ -290,8 +286,10 @@ button{
   padding:24px;
 
   margin-bottom:12px;
-}
 
+  animation:
+    cardEnter .65s cubic-bezier(.22,1,.36,1) both;
+}
 
 .hero::before{
   content:"";
@@ -318,7 +316,6 @@ button{
   pointer-events:none;
 }
 
-
 .hero::after{
   content:"";
 
@@ -342,7 +339,6 @@ button{
   pointer-events:none;
 }
 
-
 .hero-glow{
   position:absolute;
 
@@ -364,7 +360,6 @@ button{
   opacity:.7;
 }
 
-
 .eyebrow{
   position:relative;
 
@@ -378,7 +373,6 @@ button{
 
   font-weight:850;
 }
-
 
 .balance{
   position:relative;
@@ -394,7 +388,6 @@ button{
   letter-spacing:-1px;
 
   direction:ltr;
-
   text-align:right;
 
   background:
@@ -409,8 +402,11 @@ button{
   background-clip:text;
 
   color:transparent;
-}
 
+  transition:
+    transform .35s cubic-bezier(.22,1,.36,1),
+    opacity .25s ease;
+}
 
 .pnl{
   position:relative;
@@ -438,8 +434,10 @@ button{
   gap:10px;
 
   margin-bottom:12px;
-}
 
+  animation:
+    cardEnter .65s .06s cubic-bezier(.22,1,.36,1) both;
+}
 
 .stat{
   padding:16px 13px;
@@ -447,15 +445,14 @@ button{
   border-radius:20px;
 
   transition:
-    transform .2s ease,
-    border-color .2s ease;
+    transform .25s cubic-bezier(.22,1,.36,1),
+    border-color .25s ease,
+    box-shadow .25s ease;
 }
-
 
 .stat:active{
-  transform:scale(.98);
+  transform:scale(.975);
 }
-
 
 .stat span{
   display:block;
@@ -471,7 +468,6 @@ button{
   margin-bottom:8px;
 }
 
-
 .stat b{
   display:block;
 
@@ -482,6 +478,10 @@ button{
   direction:ltr;
 
   text-align:right;
+
+  transition:
+    transform .3s cubic-bezier(.22,1,.36,1),
+    opacity .25s ease;
 }
 
 
@@ -502,10 +502,11 @@ button{
   margin-top:10px;
 
   transition:
-    transform .15s ease,
-    box-shadow .15s ease;
+    transform .22s cubic-bezier(.22,1,.36,1),
+    box-shadow .28s ease,
+    background .25s ease,
+    filter .22s ease;
 }
-
 
 .primary{
   color:#031009;
@@ -519,7 +520,6 @@ button{
     );
 
   box-shadow:
-
     0 12px 38px
     rgba(54,225,115,.16),
 
@@ -527,17 +527,20 @@ button{
 
     inset 0 -1px 0
     rgba(0,80,35,.15);
+
+  animation:
+    cardEnter .65s .11s cubic-bezier(.22,1,.36,1) both;
 }
 
-
 .primary:active{
-  transform:scale(.985);
+  transform:scale(.975);
+
+  filter:brightness(.96);
 
   box-shadow:
     0 7px 20px rgba(54,225,115,.12),
     inset 0 1px 0 #fff;
 }
-
 
 .secondary{
   color:#dbeae2;
@@ -555,6 +558,10 @@ button{
   -webkit-backdrop-filter:blur(18px);
 }
 
+.secondary:active{
+  transform:scale(.975);
+}
+
 
 /* =========================
    RECENT
@@ -564,8 +571,10 @@ button{
   margin-top:17px;
 
   padding:18px;
-}
 
+  animation:
+    cardEnter .65s .16s cubic-bezier(.22,1,.36,1) both;
+}
 
 .section-title{
   font-weight:900;
@@ -574,7 +583,6 @@ button{
 
   margin-bottom:14px;
 }
-
 
 .empty{
   text-align:center;
@@ -597,8 +605,26 @@ button{
     rgba(190,255,216,.08);
 
   padding:15px 0;
+
+  animation:
+    tradeIn .38s cubic-bezier(.22,1,.36,1) both;
+
+  transition:
+    opacity .25s ease,
+    transform .25s cubic-bezier(.22,1,.36,1);
 }
 
+@keyframes tradeIn{
+  from{
+    opacity:0;
+    transform:translateY(7px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
 
 .trade:first-child{
   border-top:0;
@@ -606,11 +632,9 @@ button{
   padding-top:0;
 }
 
-
 .trade:last-child{
   padding-bottom:2px;
 }
-
 
 .trade-head{
   display:flex;
@@ -621,7 +645,6 @@ button{
   gap:10px;
 }
 
-
 .trade-symbol{
   font-weight:950;
 
@@ -629,7 +652,6 @@ button{
 
   letter-spacing:.3px;
 }
-
 
 .badge{
   font-size:9px;
@@ -648,8 +670,11 @@ button{
     rgba(255,255,255,.06);
 
   backdrop-filter:blur(12px);
-}
 
+  transition:
+    transform .22s cubic-bezier(.22,1,.36,1),
+    background .22s ease;
+}
 
 .badge.buy{
   color:#8dffb5;
@@ -658,14 +683,12 @@ button{
     rgba(70,255,130,.055);
 }
 
-
 .badge.sell{
   color:#ff9999;
 
   background:
     rgba(255,70,70,.055);
 }
-
 
 .trade-meta{
   display:grid;
@@ -682,7 +705,6 @@ button{
   font-size:10px;
 }
 
-
 .trade-meta b{
   display:block;
 
@@ -695,7 +717,6 @@ button{
   direction:ltr;
 }
 
-
 .result-row{
   display:flex;
 
@@ -703,7 +724,6 @@ button{
 
   margin-top:10px;
 }
-
 
 .result-row button{
   flex:1;
@@ -724,18 +744,17 @@ button{
   font-size:10px;
 
   transition:
-    background .15s ease,
-    transform .15s ease;
+    background .22s ease,
+    transform .22s cubic-bezier(.22,1,.36,1),
+    border-color .22s ease;
 }
 
-
 .result-row button:active{
-  transform:scale(.96);
+  transform:scale(.94);
 
   background:
     rgba(255,255,255,.08);
 }
-
 
 .status{
   font-size:10px;
@@ -743,13 +762,15 @@ button{
   color:#81958b;
 
   margin-top:8px;
-}
 
+  transition:
+    color .25s ease,
+    opacity .25s ease;
+}
 
 .status.win{
   color:#8dffb5;
 }
-
 
 .status.loss{
   color:#ff9696;
@@ -804,7 +825,6 @@ button{
   z-index:5;
 }
 
-
 .bottom-nav button{
   padding:10px;
 
@@ -822,11 +842,16 @@ button{
     transparent;
 
   transition:
-    background .2s ease,
-    color .2s ease,
-    border-color .2s ease;
+    transform .25s cubic-bezier(.22,1,.36,1),
+    background .25s ease,
+    color .25s ease,
+    border-color .25s ease,
+    box-shadow .25s ease;
 }
 
+.bottom-nav button:active{
+  transform:scale(.94);
+}
 
 .bottom-nav button.active{
   color:#eafff1;
@@ -864,20 +889,30 @@ button{
 
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
+
+  animation:
+    modalFade .28s ease both;
 }
 
+@keyframes modalFade{
+  from{
+    opacity:0;
+  }
+
+  to{
+    opacity:1;
+  }
+}
 
 .modal.hidden,
 .hidden{
   display:none!important;
 }
 
-
 .sheet{
   width:min(720px,100%);
 
   background:
-
     linear-gradient(
       145deg,
       rgba(255,255,255,.085),
@@ -903,7 +938,6 @@ button{
   overflow:auto;
 
   box-shadow:
-
     0 -25px 80px
     rgba(0,0,0,.45),
 
@@ -917,8 +951,22 @@ button{
   -webkit-backdrop-filter:
     blur(30px)
     saturate(145%);
+
+  animation:
+    sheetUp .45s cubic-bezier(.22,1,.36,1) both;
 }
 
+@keyframes sheetUp{
+  from{
+    opacity:0;
+    transform:translateY(45px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
 
 .sheet::before{
   content:"";
@@ -938,7 +986,6 @@ button{
     rgba(210,255,226,.20);
 }
 
-
 .sheet-head{
   display:flex;
 
@@ -947,7 +994,6 @@ button{
 
   margin-bottom:18px;
 }
-
 
 h2{
   margin:5px 0 0;
@@ -962,6 +1008,23 @@ h2{
    FORM
 ========================= */
 
+.step{
+  animation:
+    stepIn .32s cubic-bezier(.22,1,.36,1) both;
+}
+
+@keyframes stepIn{
+  from{
+    opacity:0;
+    transform:translateX(8px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateX(0);
+  }
+}
+
 .step label{
   display:block;
 
@@ -973,7 +1036,6 @@ h2{
 
   font-weight:700;
 }
-
 
 input{
   width:100%;
@@ -1002,16 +1064,15 @@ input{
     rgba(255,255,255,.04);
 
   transition:
-    border-color .2s ease,
-    box-shadow .2s ease,
-    background .2s ease;
+    border-color .28s ease,
+    box-shadow .28s ease,
+    background .28s ease,
+    transform .22s cubic-bezier(.22,1,.36,1);
 }
-
 
 input::placeholder{
   color:#60766b;
 }
-
 
 input:focus{
   border-color:
@@ -1026,6 +1087,8 @@ input:focus{
 
     inset 0 1px 0
     rgba(255,255,255,.06);
+
+  transform:translateY(-1px);
 }
 
 
@@ -1041,7 +1104,6 @@ input:focus{
 
   gap:10px;
 }
-
 
 .direction button{
   padding:15px;
@@ -1060,16 +1122,15 @@ input:focus{
   font-weight:900;
 
   transition:
-    transform .15s ease,
-    background .15s ease,
-    border-color .15s ease;
+    transform .22s cubic-bezier(.22,1,.36,1),
+    background .22s ease,
+    border-color .22s ease,
+    box-shadow .22s ease;
 }
-
 
 .direction button:active{
-  transform:scale(.97);
+  transform:scale(.965);
 }
-
 
 .direction button:hover{
   background:
@@ -1106,8 +1167,22 @@ input:focus{
   box-shadow:
     inset 0 1px 0
     rgba(255,255,255,.05);
+
+  animation:
+    previewIn .35s cubic-bezier(.22,1,.36,1) both;
 }
 
+@keyframes previewIn{
+  from{
+    opacity:0;
+    transform:translateY(8px) scale(.985);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0) scale(1);
+  }
+}
 
 .preview .ltr{
   direction:ltr;
@@ -1149,6 +1224,47 @@ input:focus{
 
     inset 0 1px 0
     #ffffff;
+
+  animation:
+    toastIn .35s cubic-bezier(.22,1,.36,1) both;
+}
+
+@keyframes toastIn{
+  from{
+    opacity:0;
+
+    transform:
+      translateX(-50%)
+      translateY(-12px)
+      scale(.96);
+  }
+
+  to{
+    opacity:1;
+
+    transform:
+      translateX(-50%)
+      translateY(0)
+      scale(1);
+  }
+}
+
+
+/* =========================
+   GENERAL SMOOTHNESS
+========================= */
+
+*{
+  scroll-behavior:smooth;
+}
+
+button,
+.card,
+input,
+.trade,
+.badge,
+.preview{
+  will-change:transform;
 }
 
 
@@ -1196,4 +1312,22 @@ input:focus{
     font-size:42px;
   }
 
-    }
+}
+
+
+/* =========================
+   REDUCED MOTION
+========================= */
+
+@media(prefers-reduced-motion:reduce){
+
+  *,
+  *::before,
+  *::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+    scroll-behavior:auto!important;
+  }
+
+}
